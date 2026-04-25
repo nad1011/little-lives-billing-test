@@ -49,7 +49,7 @@ npm run example
 
 - The code is organized around billing domain use cases instead of keeping all logic in one file.
 - `src/index.ts` is the public API boundary, so callers do not need to know the internal folder layout.
-- `InvoiceItemInput` is used for raw caller input before calculation, while `InvoiceItem` represents the calculated item with `lineTotal`, `taxRate`, and `taxAmount`.
+- Use `InvoiceItemInput` type for the `calculateInvoiceTotal`, because `InvoiceItem` already includes calculated fields: `lineTotal`, `taxRate`, `taxAmount`. But when calling `calculateInvoiceTotal`, the caller should not need to provide those yet. The function is responsible for calculating them.
 - Money values are rounded to two decimal places after calculations.
 - GST is passed into `calculateInvoiceTotal` so the rate is explicit in tests and callers.
 - Overpayments are allowed because the requirement includes a negative outstanding balance example.

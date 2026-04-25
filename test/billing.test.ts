@@ -53,6 +53,9 @@ describe('calculateInvoiceTotal', () => {
   });
 
   it('rejects invalid invoice amounts', () => {
+    expect(() => calculateInvoiceTotal([{ description: '   ', quantity: 1, unitPrice: 10 }], 0.07)).toThrow(
+      'Invoice item description is required.'
+    );
     expect(() => calculateInvoiceTotal([{ description: 'Bad item', quantity: -1, unitPrice: 10 }], 0.07)).toThrow(
       'Invoice item quantity cannot be negative.'
     );
@@ -61,6 +64,9 @@ describe('calculateInvoiceTotal', () => {
     );
     expect(() => calculateInvoiceTotal([{ description: 'Bad item', quantity: 1, unitPrice: 10 }], -0.01)).toThrow(
       'Tax rate cannot be negative.'
+    );
+    expect(() => calculateInvoiceTotal([{ description: 'Bad item', quantity: Number.POSITIVE_INFINITY, unitPrice: 10 }], 0.07)).toThrow(
+      'Invoice item quantity must be a finite number.'
     );
   });
 
@@ -116,6 +122,13 @@ describe('processPayment', () => {
     expect(result.invoice.status).toBe(InvoiceStatus.Paid);
   });
 
+  it('keeps invoice pending when the remaining balance is still at least the invoice total', () => {
+    const result = processPayment(createInvoice({ outstandingAmount: 1200 }), 100, PaymentMethod.Cash);
+
+    expect(result.invoice.outstandingAmount).toBe(1100);
+    expect(result.invoice.status).toBe(InvoiceStatus.Pending);
+  });
+
   it('rejects invalid payment amounts and methods', () => {
     expect(() => processPayment(createInvoice(), -1, PaymentMethod.Cash)).toThrow(
       'Payment amount must be greater than zero.'
@@ -126,6 +139,21 @@ describe('processPayment', () => {
     expect(() => processPayment(createInvoice(), 10, 'card' as PaymentMethod)).toThrow(
       'Unsupported payment method: card.'
     );
+    expect(() => processPayment(createInvoice(), Number.POSITIVE_INFINITY, PaymentMethod.Cash)).toThrow(
+      'Payment amount must be a finite number.'
+    );
+  });
+
+  it('rejects invalid invoice state before processing payment', () => {
+    expect(() => processPayment(createInvoice({ id: '' }), 10, PaymentMethod.Cash)).toThrow(
+      'Invoice id is required.'
+    );
+    expect(() => processPayment(createInvoice({ totalAmount: Number.POSITIVE_INFINITY }), 10, PaymentMethod.Cash)).toThrow(
+      'Invoice total amount must be a finite number.'
+    );
+    expect(() =>
+      processPayment(createInvoice({ outstandingAmount: Number.POSITIVE_INFINITY }), 10, PaymentMethod.Cash)
+    ).toThrow('Invoice outstanding amount must be a finite number.');
   });
 });
 
@@ -193,6 +221,13 @@ describe('generateReceipt', () => {
   it('rejects receipts when payment and invoice do not match', () => {
     expect(() => generateReceipt(createPayment({ invoiceId: 'invoice-2' }), createPaidInvoice())).toThrow(
       'Payment invoice id must match the invoice.'
+    );
+  });
+
+  it('rejects receipts with missing payment identifiers', () => {
+    expect(() => generateReceipt(createPayment({ id: '' }), createPaidInvoice())).toThrow('Payment id is required.');
+    expect(() => generateReceipt(createPayment({ invoiceId: '' }), createPaidInvoice())).toThrow(
+      'Payment invoice id is required.'
     );
   });
 });
