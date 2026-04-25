@@ -63,6 +63,14 @@ describe('calculateInvoiceTotal', () => {
       'Tax rate cannot be negative.'
     );
   });
+
+  it('handles very large invoice amounts without losing cents', () => {
+    const totals = calculateInvoiceTotal([{ description: 'Annual platform fee', quantity: 3, unitPrice: 999999.99 }], 0.07);
+
+    expect(totals.subtotal).toBe(2999999.97);
+    expect(totals.tax).toBe(210000);
+    expect(totals.total).toBe(3209999.97);
+  });
 });
 
 describe('processPayment', () => {
