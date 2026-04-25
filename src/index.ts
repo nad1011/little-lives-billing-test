@@ -110,6 +110,39 @@ export function calculateInvoiceTotal(
   };
 }
 
+export function processPayment(
+  invoice: Invoice,
+  paymentAmount: number,
+  paymentMethod: PaymentMethod
+): PaymentResult {
+  validateInvoice(invoice);
+  assertPositiveFiniteNumber(paymentAmount, 'Payment amount');
+  validatePaymentMethod(paymentMethod);
+
+  const outstandingAmount = roundMoney(invoice.outstandingAmount - paymentAmount);
+  const status = getInvoiceStatus(outstandingAmount, invoice.totalAmount);
+  const timestamp = new Date();
+
+  const payment: Payment = {
+    id: createId('pay'),
+    invoiceId: invoice.id,
+    paymentMethod,
+    amount: roundMoney(paymentAmount),
+    paymentDate: timestamp,
+    referenceNumber: createReferenceNumber(paymentMethod, timestamp),
+    status: PaymentStatus.Completed
+  };
+
+  return {
+    invoice: {
+      ...invoice,
+      outstandingAmount,
+      status
+    },
+    payment
+  };
+}
+
 function validateInvoiceItem(item: { description: string; quantity: number; unitPrice: number }): void {
   if (!item.description.trim()) {
     throw new Error('Invoice item description is required.');
@@ -123,6 +156,24 @@ function validateTaxRate(taxRate: number): void {
   assertNonNegativeFiniteNumber(taxRate, 'Tax rate');
 }
 
+function validateInvoice(invoice: Invoice): void {
+  if (!invoice.id.trim()) {
+    throw new Error('Invoice id is required.');
+  }
+
+  assertNonNegativeFiniteNumber(invoice.totalAmount, 'Invoice total amount');
+
+  if (!Number.isFinite(invoice.outstandingAmount)) {
+    throw new Error('Invoice outstanding amount must be a finite number.');
+  }
+}
+
+function validatePaymentMethod(paymentMethod: PaymentMethod): void {
+  if (!Object.values(PaymentMethod).includes(paymentMethod)) {
+    throw new Error(`Unsupported payment method: ${paymentMethod}.`);
+  }
+}
+
 function assertNonNegativeFiniteNumber(value: number, fieldName: string): void {
   if (!Number.isFinite(value)) {
     throw new Error(`${fieldName} must be a finite number.`);
@@ -133,6 +184,43 @@ function assertNonNegativeFiniteNumber(value: number, fieldName: string): void {
   }
 }
 
+function assertPositiveFiniteNumber(value: number, fieldName: string): void {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${fieldName} must be a finite number.`);
+  }
+
+  if (value <= 0) {
+    throw new Error(`${fieldName} must be greater than zero.`);
+  }
+}
+
+function getInvoiceStatus(outstandingAmount: number, totalAmount: number): InvoiceStatus {
+  if (outstandingAmount < 0) {
+    return InvoiceStatus.Overpaid;
+  }
+
+  if (outstandingAmount === 0) {
+    return InvoiceStatus.Paid;
+  }
+
+  if (outstandingAmount < totalAmount) {
+    return InvoiceStatus.PartiallyPaid;
+  }
+
+  return InvoiceStatus.Pending;
+}
+
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createReferenceNumber(paymentMethod: PaymentMethod, date: Date): string {
+  const methodPrefix = paymentMethod === PaymentMethod.BankTransfer ? 'BANK' : 'CASH';
+  const timestamp = date.toISOString().replace(/\D/g, '').slice(0, 14);
+
+  return `${methodPrefix}-${timestamp}`;
 }

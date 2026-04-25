@@ -1,4 +1,4 @@
-import { calculateInvoiceTotal } from '../src';
+import { Invoice, InvoiceStatus, PaymentMethod, PaymentStatus, calculateInvoiceTotal, processPayment } from '../src';
 
 describe('calculateInvoiceTotal', () => {
   it('calculates subtotal, tax, and total for the GST example', () => {
@@ -52,6 +52,62 @@ describe('calculateInvoiceTotal', () => {
     );
     expect(() => calculateInvoiceTotal([{ description: 'Bad item', quantity: 1, unitPrice: 10 }], -0.01)).toThrow(
       'Tax rate cannot be negative.'
+    );
+  });
+});
+
+describe('processPayment', () => {
+  function createInvoice(overrides: Partial<Invoice> = {}): Invoice {
+    return {
+      id: 'invoice-1',
+      invoiceNumber: 'INV-001',
+      invoiceDate: new Date('2026-04-25T00:00:00.000Z'),
+      items: [],
+      totalAmount: 1000,
+      totalTax: 0,
+      outstandingAmount: 1000,
+      status: InvoiceStatus.Pending,
+      ...overrides
+    };
+  }
+
+  it('tracks partial payments and overpayments for the same invoice', () => {
+    const firstResult = processPayment(createInvoice(), 300, PaymentMethod.Cash);
+
+    expect(firstResult.invoice.outstandingAmount).toBe(700);
+    expect(firstResult.invoice.status).toBe(InvoiceStatus.PartiallyPaid);
+    expect(firstResult.payment).toMatchObject({
+      invoiceId: 'invoice-1',
+      paymentMethod: PaymentMethod.Cash,
+      amount: 300,
+      status: PaymentStatus.Completed
+    });
+    expect(firstResult.payment.referenceNumber).toMatch(/^CASH-\d{14}$/);
+
+    const secondResult = processPayment(firstResult.invoice, 750, PaymentMethod.BankTransfer);
+
+    expect(secondResult.invoice.outstandingAmount).toBe(-50);
+    expect(secondResult.invoice.status).toBe(InvoiceStatus.Overpaid);
+    expect(secondResult.payment.paymentMethod).toBe(PaymentMethod.BankTransfer);
+    expect(secondResult.payment.referenceNumber).toMatch(/^BANK-\d{14}$/);
+  });
+
+  it('marks an invoice as paid when the outstanding balance reaches zero', () => {
+    const result = processPayment(createInvoice(), 1000, PaymentMethod.BankTransfer);
+
+    expect(result.invoice.outstandingAmount).toBe(0);
+    expect(result.invoice.status).toBe(InvoiceStatus.Paid);
+  });
+
+  it('rejects invalid payment amounts and methods', () => {
+    expect(() => processPayment(createInvoice(), -1, PaymentMethod.Cash)).toThrow(
+      'Payment amount must be greater than zero.'
+    );
+    expect(() => processPayment(createInvoice(), 0, PaymentMethod.Cash)).toThrow(
+      'Payment amount must be greater than zero.'
+    );
+    expect(() => processPayment(createInvoice(), 10, 'card' as PaymentMethod)).toThrow(
+      'Unsupported payment method: card.'
     );
   });
 });
