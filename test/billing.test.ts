@@ -105,14 +105,14 @@ describe('processPayment', () => {
       amount: 300,
       status: PaymentStatus.Completed
     });
-    expect(firstResult.payment.referenceNumber).toMatch(/^CASH-\d{14}$/);
+    expect(firstResult.payment.referenceNumber).toMatch(/^CASH-\d{17}-[A-F0-9]{8}$/);
 
     const secondResult = processPayment(firstResult.invoice, 750, PaymentMethod.BankTransfer);
 
     expect(secondResult.invoice.outstandingAmount).toBe(-50);
     expect(secondResult.invoice.status).toBe(InvoiceStatus.Overpaid);
     expect(secondResult.payment.paymentMethod).toBe(PaymentMethod.BankTransfer);
-    expect(secondResult.payment.referenceNumber).toMatch(/^BANK-\d{14}$/);
+    expect(secondResult.payment.referenceNumber).toMatch(/^BANK-\d{17}-[A-F0-9]{8}$/);
   });
 
   it('marks an invoice as paid when the outstanding balance reaches zero', () => {
@@ -196,7 +196,7 @@ describe('generateReceipt', () => {
     const receipt = generateReceipt(createPayment(), createPaidInvoice());
 
     expect(receipt.paymentId).toBe('payment-1');
-    expect(receipt.receiptNumber).toMatch(/^RCPT-\d{14}$/);
+    expect(receipt.receiptNumber).toMatch(/^RCPT-\d{17}-[A-F0-9]{8}$/);
     expect(receipt.totalPaid).toBe(500);
     expect(receipt.remainingBalance).toBe(89.57);
   });

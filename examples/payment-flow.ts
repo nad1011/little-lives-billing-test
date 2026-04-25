@@ -27,12 +27,12 @@ let invoice: Invoice = {
   status: InvoiceStatus.Pending
 };
 
-const firstPayment = processPayment(invoice, 300, PaymentMethod.Cash);
+const firstPayment = processPayment(invoice, 560, PaymentMethod.Cash);
 invoice = firstPayment.invoice;
 
 const firstReceipt = generateReceipt(firstPayment.payment, invoice);
 
-const secondPayment = processPayment(invoice, 300, PaymentMethod.BankTransfer);
+const secondPayment = processPayment(invoice, 50, PaymentMethod.BankTransfer);
 invoice = secondPayment.invoice;
 
 const secondReceipt = generateReceipt(secondPayment.payment, invoice);
@@ -61,7 +61,10 @@ console.table([
 ]);
 
 console.log('First receipt allocation');
-console.table(firstReceipt);
+console.table(firstReceipt.items);
 
-console.log('Latest receipt allocation');
-console.table(secondReceipt);
+console.log('Latest receipt summary');
+console.table({
+  totalPaid: secondReceipt.totalPaid,
+  remainingBalance: secondReceipt.remainingBalance
+});

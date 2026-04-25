@@ -2,11 +2,12 @@
   "name": "little-lives-billing-test",
   "version": "1.0.0",
   "description": "Invoice, payment, and receipt processing exercise in TypeScript.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "jest",
+    "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "example": "tsx examples/payment-flow.ts"
   },
