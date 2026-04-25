@@ -60,5 +60,8 @@ console.table([
   }
 ]);
 
+console.log('First receipt allocation');
+console.table(firstReceipt);
+
 console.log('Latest receipt allocation');
-console.table(secondReceipt.items);
+console.table(secondReceipt);
