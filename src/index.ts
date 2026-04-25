@@ -143,6 +143,27 @@ export function processPayment(
   };
 }
 
+export function generateReceipt(payment: Payment, invoice: Invoice): Receipt {
+  validatePayment(payment);
+  validateInvoice(invoice);
+
+  if (payment.invoiceId !== invoice.id) {
+    throw new Error('Payment invoice id must match the invoice.');
+  }
+
+  const receiptDate = new Date();
+
+  return {
+    id: createId('rcpt'),
+    paymentId: payment.id,
+    receiptNumber: createReceiptNumber(receiptDate),
+    receiptDate,
+    totalPaid: roundMoney(payment.amount),
+    remainingBalance: roundMoney(invoice.outstandingAmount),
+    items: allocatePaymentToItems(payment.amount, invoice.items)
+  };
+}
+
 function validateInvoiceItem(item: { description: string; quantity: number; unitPrice: number }): void {
   if (!item.description.trim()) {
     throw new Error('Invoice item description is required.');
@@ -172,6 +193,19 @@ function validatePaymentMethod(paymentMethod: PaymentMethod): void {
   if (!Object.values(PaymentMethod).includes(paymentMethod)) {
     throw new Error(`Unsupported payment method: ${paymentMethod}.`);
   }
+}
+
+function validatePayment(payment: Payment): void {
+  if (!payment.id.trim()) {
+    throw new Error('Payment id is required.');
+  }
+
+  if (!payment.invoiceId.trim()) {
+    throw new Error('Payment invoice id is required.');
+  }
+
+  assertPositiveFiniteNumber(payment.amount, 'Payment amount');
+  validatePaymentMethod(payment.paymentMethod);
 }
 
 function assertNonNegativeFiniteNumber(value: number, fieldName: string): void {
@@ -223,4 +257,26 @@ function createReferenceNumber(paymentMethod: PaymentMethod, date: Date): string
   const timestamp = date.toISOString().replace(/\D/g, '').slice(0, 14);
 
   return `${methodPrefix}-${timestamp}`;
+}
+
+function createReceiptNumber(date: Date): string {
+  const timestamp = date.toISOString().replace(/\D/g, '').slice(0, 14);
+
+  return `RCPT-${timestamp}`;
+}
+
+function allocatePaymentToItems(paymentAmount: number, items: InvoiceItem[]): ReceiptItem[] {
+  let remainingPayment = roundMoney(paymentAmount);
+
+  return items.map((item) => {
+    const itemTotal = roundMoney(item.lineTotal + item.taxAmount);
+    const allocatedAmount = roundMoney(Math.min(Math.max(remainingPayment, 0), itemTotal));
+    remainingPayment = roundMoney(remainingPayment - allocatedAmount);
+
+    return {
+      invoiceItemId: item.id,
+      description: item.description,
+      allocatedAmount
+    };
+  });
 }

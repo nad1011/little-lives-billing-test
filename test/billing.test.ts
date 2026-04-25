@@ -1,4 +1,13 @@
-import { Invoice, InvoiceStatus, PaymentMethod, PaymentStatus, calculateInvoiceTotal, processPayment } from '../src';
+import {
+  Invoice,
+  InvoiceStatus,
+  Payment,
+  PaymentMethod,
+  PaymentStatus,
+  calculateInvoiceTotal,
+  generateReceipt,
+  processPayment
+} from '../src';
 
 describe('calculateInvoiceTotal', () => {
   it('calculates subtotal, tax, and total for the GST example', () => {
@@ -111,4 +120,71 @@ describe('processPayment', () => {
     );
   });
 });
-``
+
+describe('generateReceipt', () => {
+  function createPaidInvoice(): Invoice {
+    const totals = calculateInvoiceTotal(
+      [
+        { id: 'monthly-fee', description: 'Monthly Fee', quantity: 1, unitPrice: 500 },
+        { id: 'activity-fee', description: 'Activity Fee', quantity: 2, unitPrice: 25.5 }
+      ],
+      0.07
+    );
+
+    return {
+      id: 'invoice-1',
+      invoiceNumber: 'INV-001',
+      invoiceDate: new Date('2026-04-25T00:00:00.000Z'),
+      items: totals.items,
+      totalAmount: totals.total,
+      totalTax: totals.tax,
+      outstandingAmount: 89.57,
+      status: InvoiceStatus.PartiallyPaid
+    };
+  }
+
+  function createPayment(overrides: Partial<Payment> = {}): Payment {
+    return {
+      id: 'payment-1',
+      invoiceId: 'invoice-1',
+      paymentMethod: PaymentMethod.Cash,
+      amount: 500,
+      paymentDate: new Date('2026-04-25T01:00:00.000Z'),
+      referenceNumber: 'CASH-20260425010000',
+      status: PaymentStatus.Completed,
+      ...overrides
+    };
+  }
+
+  it('generates a receipt with payment reference and remaining balance', () => {
+    const receipt = generateReceipt(createPayment(), createPaidInvoice());
+
+    expect(receipt.paymentId).toBe('payment-1');
+    expect(receipt.receiptNumber).toMatch(/^RCPT-\d{14}$/);
+    expect(receipt.totalPaid).toBe(500);
+    expect(receipt.remainingBalance).toBe(89.57);
+  });
+
+  it('allocates payment to invoice items in order', () => {
+    const receipt = generateReceipt(createPayment({ amount: 560 }), createPaidInvoice());
+
+    expect(receipt.items).toEqual([
+      {
+        invoiceItemId: 'monthly-fee',
+        description: 'Monthly Fee',
+        allocatedAmount: 535
+      },
+      {
+        invoiceItemId: 'activity-fee',
+        description: 'Activity Fee',
+        allocatedAmount: 25
+      }
+    ]);
+  });
+
+  it('rejects receipts when payment and invoice do not match', () => {
+    expect(() => generateReceipt(createPayment({ invoiceId: 'invoice-2' }), createPaidInvoice())).toThrow(
+      'Payment invoice id must match the invoice.'
+    );
+  });
+});
